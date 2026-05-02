@@ -88,9 +88,6 @@ struct NoteListView: View {
                                     VStack(alignment: .leading, spacing: 3) {
                                         Text(readme.jdInfo.title)
                                             .font(.body)
-                                        Text("Folder note")
-                                            .font(.caption2)
-                                            .foregroundColor(.secondary)
                                     }
                                     
                                     Spacer()

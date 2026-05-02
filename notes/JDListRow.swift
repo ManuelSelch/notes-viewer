@@ -26,10 +26,6 @@ struct JDListRow: View {
                             .background(info.level.color.opacity(0.12))
                             .clipShape(Capsule())
                     }
-                    
-                    Text(item.isDirectory ? "Folder" : "Note")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
                 }
                 
                 Text(info.title)

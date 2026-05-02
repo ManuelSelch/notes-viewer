@@ -16,6 +16,7 @@ class NotesViewModel: ObservableObject {
     @Published var searchResults: [GitHubItem] = []
     @Published var isBuildingSearchIndex = false
     @Published var cacheStatusMap: [String: Bool] = [:]
+    @Published var downloadingFolders: Set<String> = []
     
     let settings: SettingsStore
     private var service: GitHubService
@@ -174,6 +175,36 @@ class NotesViewModel: ObservableObject {
             let text = "\(info.displayNumber)\(info.title)".lowercased()
             return text.contains(lowerQuery)
         }
+    }
+    
+    // MARK: - Recursive Download
+    
+    func downloadFolderRecursively(_ item: GitHubItem) async {
+        guard item.isDirectory else { return }
+        downloadingFolders.insert(item.path)
+        
+        var allFiles: [GitHubItem] = []
+        await crawl(item.path, into: &allFiles)
+        
+        for file in allFiles where await cache.file(for: file.path) == nil {
+            do {
+                let content = try await service.fetchFileContent(
+                    owner: settings.owner,
+                    repo: settings.repo,
+                    path: file.path
+                )
+                await cache.setFile(content: content, for: file.path)
+            } catch {
+                continue
+            }
+        }
+        
+        downloadingFolders.remove(item.path)
+        await refreshCacheStatus()
+    }
+    
+    func isDownloadingFolder(_ item: GitHubItem) -> Bool {
+        downloadingFolders.contains(item.path)
     }
     
     func navigateToDirectory(_ item: GitHubItem) {
