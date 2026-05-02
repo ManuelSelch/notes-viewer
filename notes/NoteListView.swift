@@ -117,6 +117,14 @@ struct NoteListView: View {
                                     } label: {
                                         JDListRow(item: item, info: item.jdInfo, isCached: viewModel.isCached(item))
                                     }
+                                    .swipeActions(edge: .trailing) {
+                                        Button {
+                                            Task { await viewModel.downloadFolderRecursively(item) }
+                                        } label: {
+                                            Label("Download", systemImage: "arrow.down.circle")
+                                        }
+                                        .tint(.blue)
+                                    }
                                 } else if item.isMarkdown {
                                     NavigationLink {
                                         NoteDetailView(
