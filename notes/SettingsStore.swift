@@ -20,6 +20,10 @@ final class SettingsStore: ObservableObject {
         }
     }
     
+    @Published var favorites: [String] {
+        didSet { UserDefaults.standard.set(favorites, forKey: "github_favorites") }
+    }
+    
     var isConfigured: Bool {
         !owner.isEmpty && !repo.isEmpty
     }
@@ -28,5 +32,18 @@ final class SettingsStore: ObservableObject {
         self.owner = UserDefaults.standard.string(forKey: "github_owner") ?? ""
         self.repo = UserDefaults.standard.string(forKey: "github_repo") ?? ""
         self.token = (try? KeychainHelper.shared.read(for: "github_token")) ?? ""
+        self.favorites = UserDefaults.standard.stringArray(forKey: "github_favorites") ?? []
+    }
+    
+    func isFavorite(path: String) -> Bool {
+        favorites.contains(path)
+    }
+    
+    func toggleFavorite(path: String) {
+        if favorites.contains(path) {
+            favorites.removeAll { $0 == path }
+        } else {
+            favorites.append(path)
+        }
     }
 }

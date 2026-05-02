@@ -29,6 +29,11 @@ struct NoteListView: View {
         return (readme, remaining)
     }
     
+    private var favoriteItems: [GitHubItem] {
+        guard viewModel.currentPath.isEmpty else { return [] }
+        return viewModel.items.filter { settings.favorites.contains($0.path) && $0.isDirectory }
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -64,6 +69,29 @@ struct NoteListView: View {
                             .padding()
                         }
                         .listRowBackground(Color.clear)
+                    }
+                    
+                    // Favorites section (root only)
+                    if !favoriteItems.isEmpty {
+                        Section {
+                            ForEach(favoriteItems) { item in
+                                Button {
+                                    viewModel.navigateToDirectory(item)
+                                } label: {
+                                    JDListRow(item: item, info: item.jdInfo, isCached: viewModel.isCached(item))
+                                }
+                            }
+                        } header: {
+                            HStack {
+                                Text("Favorites")
+                                    .font(.footnote.bold())
+                                    .textCase(nil)
+                                Spacer()
+                                Image(systemName: "star.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(.yellow)
+                            }
+                        }
                     }
                     
                     // Readme section (single folder note)
@@ -124,6 +152,14 @@ struct NoteListView: View {
                                             Label("Download", systemImage: "arrow.down.circle")
                                         }
                                         .tint(.blue)
+                                    }
+                                    .swipeActions(edge: .leading) {
+                                        Button {
+                                            settings.toggleFavorite(path: item.path)
+                                        } label: {
+                                            Label("Favorite", systemImage: settings.isFavorite(path: item.path) ? "star.fill" : "star")
+                                        }
+                                        .tint(.yellow)
                                     }
                                 } else if item.isMarkdown {
                                     NavigationLink {
