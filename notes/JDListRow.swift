@@ -8,11 +8,11 @@ struct JDListRow: View {
     
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: info.level.icon)
-                .foregroundColor(info.level.color)
+            Image(systemName: item.isDirectory ? "folder.fill" : "doc.text.fill")
+                .foregroundColor(item.isDirectory ? .blue : info.level.color)
                 .font(.title3)
                 .frame(width: 38, height: 38)
-                .background(info.level.color.opacity(0.12))
+                .background((item.isDirectory ? Color.blue : info.level.color).opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             
             VStack(alignment: .leading, spacing: 3) {
@@ -27,7 +27,7 @@ struct JDListRow: View {
                             .clipShape(Capsule())
                     }
                     
-                    Text(info.level.label)
+                    Text(item.isDirectory ? "Folder" : "Note")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }

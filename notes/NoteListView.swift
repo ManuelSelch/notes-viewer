@@ -14,10 +14,14 @@ struct NoteListView: View {
     
     private var groupedItems: [(String, [GitHubItem])] {
         let dirs = viewModel.items.filter { $0.isDirectory }.sorted {
-            $0.jdInfo.displayNumber.localizedStandardCompare($1.jdInfo.displayNumber) == .orderedAscending
+            let num0 = $0.jdInfo.displayNumber
+            let num1 = $1.jdInfo.displayNumber
+            return num0.localizedStandardCompare(num1) == .orderedAscending
         }
-        let files = viewModel.items.filter { !$0.isDirectory && $0.isMarkdown }.sorted {
-            $0.jdInfo.displayNumber.localizedStandardCompare($1.jdInfo.displayNumber) == .orderedAscending
+        let files = viewModel.items.filter { $0.isMarkdown && !$0.isDirectory }.sorted {
+            let num0 = $0.jdInfo.displayNumber
+            let num1 = $1.jdInfo.displayNumber
+            return num0.localizedStandardCompare(num1) == .orderedAscending
         }
         
         var groups: [(String, [GitHubItem])] = []
