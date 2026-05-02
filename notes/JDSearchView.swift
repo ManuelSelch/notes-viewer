@@ -4,6 +4,7 @@ struct JDSearchView: View {
     @ObservedObject var viewModel: NotesViewModel
     @State private var query: String = ""
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var isSearchFocused: Bool
     
     private var filteredResults: [GitHubItem] {
         guard query.count >= 1 else { return [] }
@@ -17,6 +18,12 @@ struct JDSearchView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    SearchBar(text: $query, placeholder: "e.g. 21.33, ITSec.S01")
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
+                }
+                
                 if viewModel.isBuildingSearchIndex {
                     Section {
                         HStack(spacing: 12) {
@@ -30,7 +37,9 @@ struct JDSearchView: View {
                 }
                 
                 if !viewModel.isBuildingSearchIndex && filteredResults.isEmpty && !query.isEmpty {
-                    ContentUnavailableView("No results", systemImage: "magnifyingglass")
+                    Section {
+                        ContentUnavailableView("No results", systemImage: "magnifyingglass")
+                    }
                 }
                 
                 ForEach(filteredResults) { item in
@@ -48,11 +57,6 @@ struct JDSearchView: View {
             }
             .listStyle(.plain)
             .navigationTitle("Search JD Index")
-            .searchable(
-                text: $query,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "e.g. 21.33, ITSec.S01"
-            )
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }

@@ -29,7 +29,6 @@ struct SearchResultRow: View {
                     .font(.body)
                     .lineLimit(1)
                 
-                // Show parent path
                 let parentPath = item.path.components(separatedBy: "/").dropLast().joined(separator: " / ")
                 if !parentPath.isEmpty {
                     Text(parentPath)
@@ -45,6 +44,38 @@ struct SearchResultRow: View {
     }
 }
 
+struct SearchBar: View {
+    @Binding var text: String
+    @FocusState var isFocused: Bool
+    let placeholder: String
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+            TextField(placeholder, text: $text)
+                .focused($isFocused)
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isFocused = true
+            }
+        }
+    }
+}
+
 struct SearchView: View {
     @ObservedObject var viewModel: NotesViewModel
     @State private var query: String = ""
@@ -57,6 +88,12 @@ struct SearchView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section {
+                    SearchBar(text: $query, placeholder: "Search…")
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .listRowBackground(Color.clear)
+                }
+                
                 if viewModel.isBuildingSearchIndex {
                     Section {
                         HStack(spacing: 12) {
@@ -70,7 +107,9 @@ struct SearchView: View {
                 }
                 
                 if !viewModel.isBuildingSearchIndex && filteredResults.isEmpty && !query.isEmpty {
-                    ContentUnavailableView("No results", systemImage: "magnifyingglass")
+                    Section {
+                        ContentUnavailableView("No results", systemImage: "magnifyingglass")
+                    }
                 }
                 
                 ForEach(filteredResults) { item in
@@ -88,7 +127,6 @@ struct SearchView: View {
             }
             .listStyle(.plain)
             .navigationTitle("Search Notes")
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
