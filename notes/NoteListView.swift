@@ -1,80 +1,5 @@
 import SwiftUI
 
-struct JDBreadcrumbView: View {
-    let path: String
-    
-    private var segments: [String] {
-        path.split(separator: "/").map(String.init)
-    }
-    
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                Text("Root")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                ForEach(segments, id: \.self) { segment in
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Text(segment)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .padding(.horizontal, 16)
-        }
-    }
-}
-
-struct JDListRow: View {
-    let item: GitHubItem
-    let info: JDInfo
-    
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: info.level.icon)
-                .foregroundColor(info.level.color)
-                .font(.title3)
-                .frame(width: 38, height: 38)
-                .background(info.level.color.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-            
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    if !info.displayNumber.isEmpty {
-                        Text(info.displayNumber)
-                            .font(.system(.caption, design: .rounded).bold().monospaced())
-                            .foregroundColor(info.level.color)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .background(info.level.color.opacity(0.12))
-                            .clipShape(Capsule())
-                    }
-                    
-                    Text(info.level.label)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                
-                Text(info.title)
-                    .font(.body)
-                    .lineLimit(1)
-            }
-            
-            Spacer()
-            
-            if item.isDirectory {
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.teal)
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
 struct NoteListView: View {
     @StateObject private var viewModel: NotesViewModel
     @StateObject private var settings = SettingsStore()
@@ -101,110 +26,162 @@ struct NoteListView: View {
         return groups
     }
     
+    private var isShowingStaleData: Bool {
+        !viewModel.isLoadingList && viewModel.listError?.contains("cached") == true
+    }
+    
     var body: some View {
         NavigationStack {
-            List {
-                if let error = viewModel.errorMessage {
-                    Section {
-                        Text(error)
-                            .foregroundColor(.red)
-                            .padding(.vertical, 4)
+            ZStack {
+                List {
+                    if let error = viewModel.listError {
+                        Section {
+                            Label(error, systemImage: "exclamationmark.triangle")
+                                .foregroundColor(.orange)
+                                .font(.callout)
+                                .padding(.vertical, 4)
+                        }
+                        .listRowBackground(Color.orange.opacity(0.08))
                     }
-                }
-                
-                if !settings.isConfigured {
-                    Section {
-                        Text("No repository configured")
-                            .font(.callout)
-                            .foregroundColor(.secondary)
-                        Button("Configure Repository") {
-                            showSettings = true
+                    
+                    if !settings.isConfigured {
+                        Section {
+                            Text("No repository configured")
+                                .font(.callout)
+                                .foregroundColor(.secondary)
+                            Button("Configure Repository") {
+                                showSettings = true
+                            }
                         }
                     }
-                }
-                
-                if viewModel.isLoading {
-                    Section {
-                        ProgressView()
+                    
+                    if viewModel.isLoadingList && viewModel.items.isEmpty {
+                        Section {
+                            VStack(spacing: 12) {
+                                ProgressView()
+                                    .scaleEffect(1.2)
+                                Text("Loading…")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+                            }
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding()
+                        }
+                        .listRowBackground(Color.clear)
                     }
-                }
-                
-                ForEach(groupedItems, id: \.0) { title, items in
-                    Section(title) {
-                        ForEach(items) { item in
-                            if item.isDirectory {
-                                Button {
-                                    viewModel.navigateToDirectory(item)
-                                } label: {
-                                    JDListRow(item: item, info: item.jdInfo)
+                    
+                    ForEach(groupedItems, id: \.0) { title, items in
+                        Section {
+                            ForEach(items) { item in
+                                if item.isDirectory {
+                                    Button {
+                                        viewModel.navigateToDirectory(item)
+                                    } label: {
+                                        JDListRow(item: item, info: item.jdInfo)
+                                    }
+                                } else if item.isMarkdown {
+                                    NavigationLink {
+                                        NoteDetailView(
+                                            owner: viewModel.settings.owner,
+                                            repo: viewModel.settings.repo,
+                                            token: viewModel.settings.token,
+                                            item: item
+                                        )
+                                    } label: {
+                                        JDListRow(item: item, info: item.jdInfo)
+                                    }
                                 }
-                            } else if item.isMarkdown {
-                                NavigationLink {
-                                    NoteDetailView(viewModel: viewModel, item: item)
-                                } label: {
-                                    JDListRow(item: item, info: item.jdInfo)
+                            }
+                        } header: {
+                            HStack {
+                                Text(title)
+                                    .font(.footnote.bold())
+                                    .textCase(nil)
+                                if isShowingStaleData {
+                                    Spacer()
+                                    Label("Cached", systemImage: "clock.arrow.circlepath")
+                                        .font(.caption2)
+                                        .foregroundColor(.orange)
                                 }
                             }
                         }
                     }
                 }
-            }
-            .listStyle(.insetGrouped)
-            .navigationTitle(titleForCurrentLevel)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if viewModel.canGoBack {
-                        Button {
-                            viewModel.navigateBack()
-                        } label: {
-                            Label("Back", systemImage: "arrow.left")
-                                .labelStyle(.iconOnly)
+                .listStyle(.insetGrouped)
+                .navigationTitle(titleForCurrentLevel)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        if viewModel.canGoBack {
+                            Button {
+                                viewModel.navigateBack()
+                            } label: {
+                                Label("Back", systemImage: "arrow.left")
+                                    .labelStyle(.iconOnly)
+                            }
                         }
+                    }
+                    
+                    ToolbarItem(placement: .topBarTrailing) {
+                        HStack(spacing: 16) {
+                            Button {
+                                showSearch = true
+                            } label: {
+                                Label("Search", systemImage: "magnifyingglass")
+                                    .labelStyle(.iconOnly)
+                            }
+                            
+                            Button {
+                                showSettings = true
+                            } label: {
+                                Label("Settings", systemImage: "gear")
+                                    .labelStyle(.iconOnly)
+                            }
+                        }
+                    }
+                }
+                .sheet(isPresented: $showSettings) {
+                    SettingsView(settings: settings)
+                }
+                .sheet(isPresented: $showSearch) {
+                    SearchView(viewModel: viewModel)
+                }
+                .onChange(of: settings.owner) { _, _ in
+                    viewModel.reloadService(token: settings.token)
+                    Task { await viewModel.loadContents() }
+                }
+                .onChange(of: settings.repo) { _, _ in
+                    viewModel.reloadService(token: settings.token)
+                    Task { await viewModel.loadContents() }
+                }
+                .task {
+                    if settings.isConfigured && viewModel.items.isEmpty {
+                        await viewModel.loadContents()
+                    }
+                }
+                .refreshable {
+                    if settings.isConfigured {
+                        await viewModel.loadContents(path: viewModel.currentPath)
                     }
                 }
                 
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 16) {
-                        Button {
-                            showSearch = true
-                        } label: {
-                            Label("Search", systemImage: "magnifyingglass")
-                                .labelStyle(.iconOnly)
+                // Overlay loading indicator when we have partial data
+                if viewModel.isLoadingList && !viewModel.items.isEmpty {
+                    VStack {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Updating…")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
-                        
-                        Button {
-                            showSettings = true
-                        } label: {
-                            Label("Settings", systemImage: "gear")
-                                .labelStyle(.iconOnly)
-                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .shadow(color: .black.opacity(0.1), radius: 4)
+                        Spacer()
                     }
-                }
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsView(settings: settings)
-            }
-            .sheet(isPresented: $showSearch) {
-                SearchView(viewModel: viewModel)
-            }
-            .onChange(of: settings.owner) { _, _ in
-                viewModel.reloadService(token: settings.token)
-                Task { await viewModel.loadContents() }
-            }
-            .onChange(of: settings.repo) { _, _ in
-                viewModel.reloadService(token: settings.token)
-                Task { await viewModel.loadContents() }
-            }
-            .task {
-                if settings.isConfigured && viewModel.items.isEmpty {
-                    await viewModel.loadContents()
-                }
-            }
-            .refreshable {
-                if settings.isConfigured {
-                    await viewModel.loadContents(path: viewModel.currentPath)
+                    .padding(.top, 8)
                 }
             }
         }

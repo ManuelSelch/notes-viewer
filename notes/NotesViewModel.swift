@@ -6,13 +6,16 @@ import Combine
 class NotesViewModel: ObservableObject {
     @Published var items: [GitHubItem] = []
     @Published var markdownContent: String = ""
-    @Published var isLoading = false
-    @Published var errorMessage: String?
+    @Published var isLoadingList = false
+    @Published var isLoadingFile = false
+    @Published var listError: String?
+    @Published var fileError: String?
     @Published var currentPath: String = ""
     @Published var navigationStack: [String] = []
     
     let settings: SettingsStore
     private var service: GitHubService
+    private let cache = DirectoryCache.shared
     
     init(settings: SettingsStore) {
         self.settings = settings
@@ -25,36 +28,54 @@ class NotesViewModel: ObservableObject {
     
     func loadContents(path: String = "") async {
         guard !settings.owner.isEmpty && !settings.repo.isEmpty else {
-            errorMessage = "No repository configured. Open Settings."
+            listError = "No repository configured. Open Settings."
             return
         }
         
-        isLoading = true
-        errorMessage = nil
+        isLoadingList = true
+        listError = nil
         
-        do {
-            items = try await service.fetchRepositoryContents(owner: settings.owner, repo: settings.repo, path: path)
-            currentPath = path
-        } catch {
-            errorMessage = error.localizedDescription
+        // Clear stale items while loading so user doesn't see wrong data
+        if path != currentPath {
+            items = []
         }
         
-        isLoading = false
+        // Try cache first for instant display
+        if let cached = await cache.get(for: path) {
+            items = cached
+        }
+        
+        do {
+            let freshItems = try await service.fetchRepositoryContents(owner: settings.owner, repo: settings.repo, path: path)
+            items = freshItems
+            currentPath = path
+            await cache.set(items: freshItems, for: path)
+        } catch {
+            // If we have cached items, keep them and show a subtle error
+            if items.isEmpty {
+                listError = error.localizedDescription
+            } else {
+                listError = "\(error.localizedDescription) — showing cached data"
+            }
+        }
+        
+        isLoadingList = false
     }
     
     func loadFile(_ item: GitHubItem) async {
         guard item.isMarkdown else { return }
         
-        isLoading = true
-        errorMessage = nil
+        isLoadingFile = true
+        fileError = nil
+        markdownContent = ""
         
         do {
             markdownContent = try await service.fetchFileContent(owner: settings.owner, repo: settings.repo, path: item.path)
         } catch {
-            errorMessage = error.localizedDescription
+            fileError = error.localizedDescription
         }
         
-        isLoading = false
+        isLoadingFile = false
     }
     
     func navigateToDirectory(_ item: GitHubItem) {
@@ -74,5 +95,11 @@ class NotesViewModel: ObservableObject {
     
     var canGoBack: Bool {
         !navigationStack.isEmpty
+    }
+    
+    func clearCache() {
+        Task {
+            await cache.clear()
+        }
     }
 }

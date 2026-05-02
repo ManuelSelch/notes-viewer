@@ -70,7 +70,12 @@ struct SearchView: View {
                         }
                     } else if item.isMarkdown {
                         NavigationLink {
-                            NoteDetailView(viewModel: viewModel, item: item)
+                            NoteDetailView(
+                                owner: viewModel.settings.owner,
+                                repo: viewModel.settings.repo,
+                                token: viewModel.settings.token,
+                                item: item
+                            )
                         } label: {
                             SearchResultRow(item: item, info: item.jdInfo)
                         }
