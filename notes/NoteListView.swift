@@ -12,22 +12,21 @@ struct NoteListView: View {
         _settings = StateObject(wrappedValue: settings)
     }
     
-    private var groupedItems: [(String, [GitHubItem])] {
-        let dirs = viewModel.items.filter { $0.isDirectory }.sorted {
-            let num0 = $0.jdInfo.displayNumber
-            let num1 = $1.jdInfo.displayNumber
-            return num0.localizedStandardCompare(num1) == .orderedAscending
+    private var itemsWithReadme: (readme: GitHubItem?, remaining: [GitHubItem]) {
+        let parentName = viewModel.currentPath.split(separator: "/").last.map(String.init) ?? ""
+        guard !parentName.isEmpty else {
+            return (nil, viewModel.items)
         }
-        let files = viewModel.items.filter { $0.isMarkdown && !$0.isDirectory }.sorted {
-            let num0 = $0.jdInfo.displayNumber
-            let num1 = $1.jdInfo.displayNumber
-            return num0.localizedStandardCompare(num1) == .orderedAscending
+        let readmeName = "\(parentName).md"
+        var readme: GitHubItem?
+        let remaining = viewModel.items.filter { item in
+            if item.name == readmeName {
+                readme = item
+                return false
+            }
+            return true
         }
-        
-        var groups: [(String, [GitHubItem])] = []
-        if !dirs.isEmpty { groups.append(("Categories", dirs)) }
-        if !files.isEmpty { groups.append(("Notes", files)) }
-        return groups
+        return (readme, remaining)
     }
     
     var body: some View {
@@ -67,9 +66,54 @@ struct NoteListView: View {
                         .listRowBackground(Color.clear)
                     }
                     
-                    ForEach(groupedItems, id: \.0) { title, items in
+                    // Readme section (single folder note)
+                    if let readme = itemsWithReadme.readme {
                         Section {
-                            ForEach(items) { item in
+                            NavigationLink {
+                                NoteDetailView(
+                                    owner: viewModel.settings.owner,
+                                    repo: viewModel.settings.repo,
+                                    token: viewModel.settings.token,
+                                    item: readme
+                                )
+                            } label: {
+                                HStack(spacing: 14) {
+                                    Image(systemName: "doc.text.fill")
+                                        .foregroundColor(.gray)
+                                        .font(.title3)
+                                        .frame(width: 38, height: 38)
+                                        .background(Color.gray.opacity(0.12))
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(readme.jdInfo.title)
+                                            .font(.body)
+                                        Text("Folder note")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    if viewModel.isCached(readme) {
+                                        Image(systemName: "arrow.down.circle.fill")
+                                            .foregroundColor(.green)
+                                            .font(.caption)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        } header: {
+                            Text("Readme")
+                                .font(.footnote.bold())
+                                .textCase(nil)
+                        }
+                    }
+                    
+                    // All items in order
+                    if !itemsWithReadme.remaining.isEmpty {
+                        Section {
+                            ForEach(itemsWithReadme.remaining) { item in
                                 if item.isDirectory {
                                     Button {
                                         viewModel.navigateToDirectory(item)
@@ -91,7 +135,7 @@ struct NoteListView: View {
                             }
                         } header: {
                             HStack {
-                                Text(title)
+                                Text("Index")
                                     .font(.footnote.bold())
                                     .textCase(nil)
                                 
