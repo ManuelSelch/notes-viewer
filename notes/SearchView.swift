@@ -24,13 +24,19 @@ struct SearchResultRow: View {
                             .background(info.level.color.opacity(0.12))
                             .clipShape(Capsule())
                     }
-                    Text(info.level.label)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
                 }
                 Text(info.title)
                     .font(.body)
                     .lineLimit(1)
+                
+                // Show parent path
+                let parentPath = item.path.components(separatedBy: "/").dropLast().joined(separator: " / ")
+                if !parentPath.isEmpty {
+                    Text(parentPath)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
             }
             
             Spacer()
@@ -44,46 +50,44 @@ struct SearchView: View {
     @State private var query: String = ""
     @Environment(\.dismiss) private var dismiss
     
-    private var results: [GitHubItem] {
-        guard query.count >= 1 else { return [] }
-        return viewModel.items.filter { item in
-            let info = item.jdInfo
-            let searchText = "\(info.displayNumber)\(info.title)".lowercased()
-            return searchText.contains(query.lowercased())
-        }
+    private var filteredResults: [GitHubItem] {
+        viewModel.search(query: query)
     }
     
     var body: some View {
         NavigationStack {
             List {
-                if results.isEmpty && !query.isEmpty {
+                if viewModel.isBuildingSearchIndex {
+                    Section {
+                        HStack(spacing: 12) {
+                            ProgressView()
+                            Text("Scanning repository…")
+                                .foregroundColor(.secondary)
+                            Spacer()
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+                
+                if !viewModel.isBuildingSearchIndex && filteredResults.isEmpty && !query.isEmpty {
                     ContentUnavailableView("No results", systemImage: "magnifyingglass")
                 }
                 
-                ForEach(results) { item in
-                    if item.isDirectory {
-                        Button {
-                            viewModel.navigateToDirectory(item)
-                            dismiss()
-                        } label: {
-                            SearchResultRow(item: item, info: item.jdInfo)
-                        }
-                    } else if item.isMarkdown {
-                        NavigationLink {
-                            NoteDetailView(
-                                owner: viewModel.settings.owner,
-                                repo: viewModel.settings.repo,
-                                token: viewModel.settings.token,
-                                item: item
-                            )
-                        } label: {
-                            SearchResultRow(item: item, info: item.jdInfo)
-                        }
+                ForEach(filteredResults) { item in
+                    NavigationLink {
+                        NoteDetailView(
+                            owner: viewModel.settings.owner,
+                            repo: viewModel.settings.repo,
+                            token: viewModel.settings.token,
+                            item: item
+                        )
+                    } label: {
+                        SearchResultRow(item: item, info: item.jdInfo)
                     }
                 }
             }
             .listStyle(.plain)
-            .navigationTitle("Search")
+            .navigationTitle("Search Notes")
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -91,8 +95,8 @@ struct SearchView: View {
                 }
             }
             .task {
-                if viewModel.items.isEmpty && viewModel.settings.isConfigured {
-                    await viewModel.loadContents()
+                if viewModel.settings.isConfigured && viewModel.searchResults.isEmpty {
+                    await viewModel.buildSearchIndex()
                 }
             }
         }

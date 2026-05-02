@@ -13,6 +13,8 @@ class NotesViewModel: ObservableObject {
     @Published var fileError: String?
     @Published var currentPath: String = ""
     @Published var navigationStack: [String] = []
+    @Published var searchResults: [GitHubItem] = []
+    @Published var isBuildingSearchIndex = false
     
     let settings: SettingsStore
     private var service: GitHubService
@@ -35,20 +37,16 @@ class NotesViewModel: ObservableObject {
         
         listError = nil
         
-        // Check cache first — show instantly if available
         if let cached = await cache.directory(for: path) {
             items = cached
             currentPath = path
             isOffline = true
-            
-            // If we have no network, don't bother trying to refresh
             guard await hasNetwork() else { return }
         }
         
         isLoadingList = true
         
-        // Clear before fetching to avoid stale data mismatch
-        if !items.isEmpty {
+        if path != currentPath {
             items = []
         }
         
@@ -59,13 +57,11 @@ class NotesViewModel: ObservableObject {
             isOffline = false
             await cache.setDirectory(items: freshItems, for: path)
         } catch let error as URLError where error.code == .notConnectedToInternet {
-            // Network offline — cache already shown above
             items = await cache.directory(for: path) ?? []
             isOffline = true
         } catch {
-            let cached = await cache.directory(for: path)
-            if cached != nil {
-                items = cached!
+            if let cached = await cache.directory(for: path) {
+                items = cached
                 isOffline = true
                 listError = "Offline — showing cached data"
             } else {
@@ -79,7 +75,6 @@ class NotesViewModel: ObservableObject {
     
     func loadFile(_ item: GitHubItem) async {
         guard item.isMarkdown else { return }
-        
         isLoadingFile = true
         fileError = nil
         markdownContent = ""
@@ -87,7 +82,6 @@ class NotesViewModel: ObservableObject {
         if let cached = await cache.file(for: item.path) {
             markdownContent = cached
             isOffline = true
-            
             guard await hasNetwork() else {
                 isLoadingFile = false
                 return
@@ -100,48 +94,88 @@ class NotesViewModel: ObservableObject {
             isOffline = false
             await cache.setFile(content: content, for: item.path)
         } catch let error as URLError where error.code == .notConnectedToInternet {
-            if let cached = await cache.file(for: item.path) {
-                markdownContent = cached
-                isOffline = true
-            } else {
-                fileError = "No network — file not cached"
-            }
+            fileError = "No network — file not cached"
+            isOffline = true
         } catch {
-            if let cached = await cache.file(for: item.path) {
-                markdownContent = cached
+            if markdownContent.isEmpty {
+                fileError = error.localizedDescription
+            } else {
                 isOffline = true
                 fileError = "Offline — showing cached content"
-            } else {
-                fileError = error.localizedDescription
             }
         }
         
         isLoadingFile = false
     }
     
+    // MARK: - Recursive Search
+    
+    func buildSearchIndex(from rootPath: String = "") async {
+        guard !settings.owner.isEmpty && !settings.repo.isEmpty else { return }
+        isBuildingSearchIndex = true
+        var allFiles: [GitHubItem] = []
+        
+        await crawl(rootPath, into: &allFiles)
+        
+        searchResults = allFiles.sorted {
+            $0.jdInfo.displayNumber.localizedStandardCompare($1.jdInfo.displayNumber) == .orderedAscending
+        }
+        isBuildingSearchIndex = false
+    }
+    
+    private func crawl(_ path: String, into results: inout [GitHubItem]) async {
+        // Try cache first, then network
+        var items: [GitHubItem] = []
+        
+        if let cached = await cache.directory(for: path) {
+            items = cached
+        }
+        
+        if items.isEmpty {
+            do {
+                items = try await service.fetchRepositoryContents(owner: settings.owner, repo: settings.repo, path: path)
+                await cache.setDirectory(items: items, for: path)
+            } catch {
+                return // Skip this path if we can't fetch
+            }
+        }
+        
+        for item in items {
+            if item.isMarkdown {
+                results.append(item)
+            } else if item.isDirectory {
+                await crawl(item.path, into: &results)
+            }
+        }
+    }
+    
+    func search(query: String) -> [GitHubItem] {
+        guard query.count >= 1 else { return [] }
+        let lowerQuery = query.lowercased()
+        return searchResults.filter { item in
+            let info = item.jdInfo
+            let text = "\(info.displayNumber)\(info.title)".lowercased()
+            return text.contains(lowerQuery)
+        }
+    }
+    
+    // MARK: - Navigation
+    
     func navigateToDirectory(_ item: GitHubItem) {
         guard item.isDirectory else { return }
         navigationStack.append(currentPath)
-        Task {
-            await loadContents(path: item.path)
-        }
+        Task { await loadContents(path: item.path) }
     }
     
     func navigateBack() {
         guard let previousPath = navigationStack.popLast() else { return }
-        Task {
-            await loadContents(path: previousPath)
-        }
+        Task { await loadContents(path: previousPath) }
     }
     
-    var canGoBack: Bool {
-        !navigationStack.isEmpty
-    }
+    var canGoBack: Bool { !navigationStack.isEmpty }
     
     func clearCache() {
-        Task {
-            await cache.clear()
-        }
+        Task { await cache.clear() }
     }
     
     private func hasNetwork() async -> Bool {
@@ -150,8 +184,6 @@ class NotesViewModel: ObservableObject {
         do {
             _ = try await URLSession.shared.data(for: request)
             return true
-        } catch {
-            return false
-        }
+        } catch { return false }
     }
 }
