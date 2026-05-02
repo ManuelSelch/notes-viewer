@@ -40,6 +40,7 @@ nonisolated struct GitHubItem: Codable, Identifiable {
 actor GitHubService {
     private let session: URLSession
     private let baseURL = "https://api.github.com"
+    private let token: String?
     
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
@@ -47,8 +48,19 @@ actor GitHubService {
         return decoder
     }()
     
-    init(session: URLSession = .shared) {
+    init(session: URLSession = .shared, token: String? = nil) {
         self.session = session
+        self.token = token
+    }
+    
+    private func makeRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        if let token = token, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        return request
     }
     
     func fetchRepositoryContents(owner: String, repo: String, path: String = "") async throws -> [GitHubItem] {
@@ -58,14 +70,10 @@ actor GitHubService {
         
         guard let url = URL(string: endpoint) else { throw GitHubError.invalidURL }
         
-        var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-        
+        let request = makeRequest(url: url)
         let (data, response) = try await session.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else { throw GitHubError.invalidResponse }
-        
         guard httpResponse.statusCode == 200 else { throw GitHubError.httpError(statusCode: httpResponse.statusCode) }
         
         return try decoder.decode([GitHubItem].self, from: data)
@@ -75,23 +83,13 @@ actor GitHubService {
         let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         let endpoint = "\(baseURL)/repos/\(owner)/\(repo)/contents/\(encodedPath)"
         
-        guard let url = URL(string: endpoint) else {
-            throw GitHubError.invalidURL
-        }
+        guard let url = URL(string: endpoint) else { throw GitHubError.invalidURL }
         
-        var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
-        
+        let request = makeRequest(url: url)
         let (data, response) = try await session.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw GitHubError.invalidResponse
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            throw GitHubError.httpError(statusCode: httpResponse.statusCode)
-        }
+        guard let httpResponse = response as? HTTPURLResponse else { throw GitHubError.invalidResponse }
+        guard httpResponse.statusCode == 200 else { throw GitHubError.httpError(statusCode: httpResponse.statusCode) }
         
         let content = try decoder.decode(GitHubContent.self, from: data)
         

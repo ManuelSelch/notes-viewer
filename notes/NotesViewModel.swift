@@ -11,22 +11,29 @@ class NotesViewModel: ObservableObject {
     @Published var currentPath: String = ""
     @Published var navigationStack: [String] = []
     
-    private let service = GitHubService()
+    let settings: SettingsStore
+    private let service: GitHubService
     
-    let owner: String
-    let repo: String
+    init(settings: SettingsStore) {
+        self.settings = settings
+        self.service = GitHubService(token: settings.token)
+    }
     
-    init(owner: String, repo: String) {
-        self.owner = owner
-        self.repo = repo
+    func reloadService() {
+        // Recreate service with updated token
     }
     
     func loadContents(path: String = "") async {
+        guard !settings.owner.isEmpty && !settings.repo.isEmpty else {
+            errorMessage = "No repository configured. Open Settings."
+            return
+        }
+        
         isLoading = true
         errorMessage = nil
         
         do {
-            items = try await service.fetchRepositoryContents(owner: owner, repo: repo, path: path)
+            items = try await service.fetchRepositoryContents(owner: settings.owner, repo: settings.repo, path: path)
             currentPath = path
         } catch {
             errorMessage = error.localizedDescription
@@ -42,7 +49,7 @@ class NotesViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            markdownContent = try await service.fetchFileContent(owner: owner, repo: repo, path: item.path)
+            markdownContent = try await service.fetchFileContent(owner: settings.owner, repo: settings.repo, path: item.path)
         } catch {
             errorMessage = error.localizedDescription
         }

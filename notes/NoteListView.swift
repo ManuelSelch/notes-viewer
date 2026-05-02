@@ -2,22 +2,36 @@ import SwiftUI
 
 struct NoteListView: View {
     @StateObject private var viewModel: NotesViewModel
+    @StateObject private var settings = SettingsStore()
+    @State private var showSettings = false
     
-    init(owner: String, repo: String) {
-        _viewModel = StateObject(wrappedValue: NotesViewModel(owner: owner, repo: repo))
+    init() {
+        let settings = SettingsStore()
+        _viewModel = StateObject(wrappedValue: NotesViewModel(settings: settings))
+        _settings = StateObject(wrappedValue: settings)
     }
     
     var body: some View {
         NavigationStack {
             List {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, alignment: .center)
-                }
-                
                 if let error = viewModel.errorMessage {
                     Text("Error: \(error)")
                         .foregroundColor(.red)
+                }
+                
+                if !settings.isConfigured {
+                    Section {
+                        Text("No repository configured")
+                            .foregroundColor(.secondary)
+                        Button("Open Settings") {
+                            showSettings = true
+                        }
+                    }
+                }
+                
+                if viewModel.isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
                 
                 ForEach(viewModel.items) { item in
@@ -50,21 +64,32 @@ struct NoteListView: View {
             .listStyle(.plain)
             .navigationTitle(viewModel.currentPath.isEmpty ? "Notes" : viewModel.currentPath)
             .toolbar {
-                if viewModel.canGoBack {
-                    ToolbarItem(placement: .navigation) { // navigationBarLeading
-                        Button("Back") {
-                            viewModel.navigateBack()
-                        }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gear")
                     }
                 }
             }
-        }
-        .task {
-            await viewModel.loadContents()
+            .sheet(isPresented: $showSettings) {
+                SettingsView(settings: settings)
+            }
+            .onChange(of: settings.owner) { _, _ in
+                Task { await viewModel.loadContents() }
+            }
+            .onChange(of: settings.repo) { _, _ in
+                Task { await viewModel.loadContents() }
+            }
+            .task {
+                if settings.isConfigured {
+                    await viewModel.loadContents()
+                }
+            }
         }
     }
 }
 
 #Preview {
-    NoteListView(owner: "ManuelSelch", repo: "pi-memory-md")
+    NoteListView()
 }

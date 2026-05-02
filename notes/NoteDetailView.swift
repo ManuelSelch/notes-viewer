@@ -31,8 +31,9 @@ struct NoteDetailView: View {
 
 #Preview {
     NavigationStack {
+        let settings = SettingsStore()
         NoteDetailView(
-            viewModel: NotesViewModel(owner: "ManuelSelch", repo: "pi-memory-md"),
+            viewModel: NotesViewModel(settings: settings),
             item: GitHubItem(
                 name: "README.md",
                 path: "README.md",
