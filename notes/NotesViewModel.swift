@@ -12,15 +12,15 @@ class NotesViewModel: ObservableObject {
     @Published var navigationStack: [String] = []
     
     let settings: SettingsStore
-    private let service: GitHubService
+    private var service: GitHubService
     
     init(settings: SettingsStore) {
         self.settings = settings
         self.service = GitHubService(token: settings.token)
     }
     
-    func reloadService() {
-        // Recreate service with updated token
+    func reloadService(token: String) {
+        service = GitHubService(token: token)
     }
     
     func loadContents(path: String = "") async {
