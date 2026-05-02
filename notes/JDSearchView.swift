@@ -58,9 +58,9 @@ struct JDSearchView: View {
                     Button("Close") { dismiss() }
                 }
             }
-            .task {
-                if viewModel.settings.isConfigured && viewModel.searchResults.isEmpty {
-                    await viewModel.buildSearchIndex()
+            .task(id: viewModel.currentPath) {
+                if viewModel.settings.isConfigured {
+                    await viewModel.buildSearchIndex(from: viewModel.currentPath)
                 }
             }
         }

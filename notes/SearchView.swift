@@ -95,8 +95,8 @@ struct SearchView: View {
                 }
             }
             .task {
-                if viewModel.settings.isConfigured && viewModel.searchResults.isEmpty {
-                    await viewModel.buildSearchIndex()
+                if viewModel.settings.isConfigured {
+                    await viewModel.buildSearchIndex(from: viewModel.currentPath)
                 }
             }
         }
