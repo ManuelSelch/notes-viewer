@@ -36,3 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simplify readme (95188bc)
 - Add readme (19ea1fe)
 - Smaller navigation title & hide hidden files & remove updating text (c69f62a)
+
+[Unreleased]: https://github.com/ManuelSelch/notes-viewer/compare/7ffe59c44e82dadd557e93995a4b12e29c51f870...main
+
