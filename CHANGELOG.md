@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [1.0.0] - 2026-05-02
+
 ### Added
 - Add architecture to readme (fbb44fc)
 - Automatically focus searchbar textfield (50127b9)
@@ -37,5 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add readme (19ea1fe)
 - Smaller navigation title & hide hidden files & remove updating text (c69f62a)
 
-[Unreleased]: https://github.com/ManuelSelch/notes-viewer/compare/7ffe59c44e82dadd557e93995a4b12e29c51f870...main
+
+[Unreleased]: https://github.com/ManuelSelch/notes-viewer/compare/1.0.0...main
+[1.0.0]: https://github.com/ManuelSelch/notes-viewer/compare/7ffe59c44e82dadd557e93995a4b12e29c51f870...1.0.0
 
