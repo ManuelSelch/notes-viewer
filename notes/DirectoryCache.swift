@@ -4,6 +4,7 @@ actor DirectoryCache {
     static let shared = DirectoryCache()
     
     private var cache: [String: CachedEntry] = [:]
+    private var hasLoadedFromDisk = false
     private let fileManager = FileManager.default
     private let cacheDirectory: URL
     
@@ -12,14 +13,18 @@ actor DirectoryCache {
         let timestamp: Date
     }
     
+
     private init() {
         let urls = fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
         cacheDirectory = urls[0].appendingPathComponent("notes_cache")
         try? fileManager.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
-        loadFromDisk()
     }
     
     func get(for path: String) -> [GitHubItem]? {
+        if !hasLoadedFromDisk {
+            loadFromDisk()
+            hasLoadedFromDisk = true
+        }
         guard let entry = cache[path], entry.timestamp.timeIntervalSinceNow > -300 else { return nil }
         return entry.items
     }
