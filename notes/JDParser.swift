@@ -49,21 +49,44 @@ extension GitHubItem {
     var jdInfo: JDInfo {
         let cleanName = name.replacingOccurrences(of: ".md", with: "")
         
-        // Try 10.01 pattern first (most specific)
+        // Prefixed item: ITSec.S02.01 or IT-Sec.S02.01
+        if let match = cleanName.range(of: #"^[A-Za-z0-9\-]+\.[A-Za-z]\d{2}\.\d{2}"#, options: .regularExpression) {
+            let number = String(cleanName[match])
+            let remainder = String(cleanName[match.upperBound...]).trimmingCharacters(in: .whitespaces)
+            return JDInfo(number: number, title: remainder.isEmpty ? name : remainder, level: .item)
+        }
+        
+        // Prefixed category: ITSec.S02
+        if let match = cleanName.range(of: #"^[A-Za-z0-9\-]+\.[A-Za-z]\d{2}"#, options: .regularExpression) {
+            let number = String(cleanName[match])
+            let remainder = String(cleanName[match.upperBound...]).trimmingCharacters(in: .whitespaces)
+            return JDInfo(number: number, title: remainder.isEmpty ? name : remainder, level: .category)
+        }
+        
+        // Prefixed area: ITSec.S
+        if let match = cleanName.range(of: #"^[A-Za-z0-9\-]+\.[A-Za-z](?:$|[\s\-_])"#, options: .regularExpression) {
+            // Remove trailing space/dash/underscore from match
+            let raw = String(cleanName[match])
+            let number = raw.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "-_"))
+            let remainder = String(cleanName[match.upperBound...]).trimmingCharacters(in: .whitespaces)
+            return JDInfo(number: number, title: remainder.isEmpty ? name : remainder, level: .area)
+        }
+        
+        // Standard item: 10.01
         if let match = cleanName.range(of: #"^\d{2}\.\d{2}"#, options: .regularExpression) {
             let number = String(cleanName[match])
             let remainder = String(cleanName[match.upperBound...]).trimmingCharacters(in: .whitespaces)
             return JDInfo(number: number, title: remainder.isEmpty ? name : remainder, level: .item)
         }
         
-        // Try 10-19 pattern (areas)
+        // Standard area: 10-19
         if let match = cleanName.range(of: #"^\d{2}-\d{2}"#, options: .regularExpression) {
             let number = String(cleanName[match])
             let remainder = String(cleanName[match.upperBound...]).trimmingCharacters(in: .whitespaces)
             return JDInfo(number: number, title: remainder.isEmpty ? name : remainder, level: .area)
         }
         
-        // Try 10 pattern (categories)
+        // Standard category: 10
         if let match = cleanName.range(of: #"^\d{2}"#, options: .regularExpression) {
             let number = String(cleanName[match])
             let remainder = String(cleanName[match.upperBound...]).trimmingCharacters(in: .whitespaces)
