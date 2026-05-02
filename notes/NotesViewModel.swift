@@ -42,7 +42,6 @@ class NotesViewModel: ObservableObject {
         if let cached = await cache.directory(for: path) {
             items = cached
             currentPath = path
-            isOffline = true
             await refreshCacheStatus()
             guard await hasNetwork() else { return }
         }
@@ -56,10 +55,10 @@ class NotesViewModel: ObservableObject {
         
         do {
             let freshItems = try await service.fetchRepositoryContents(owner: settings.owner, repo: settings.repo, path: path)
-            items = freshItems
+            items = freshItems.filter { !$0.name.starts(with: ".") }
             currentPath = path
             isOffline = false
-            await cache.setDirectory(items: freshItems, for: path)
+            await cache.setDirectory(items: items, for: path)
             await refreshCacheStatus()
         } catch let error as URLError where error.code == .notConnectedToInternet {
             items = await cache.directory(for: path) ?? []

@@ -156,6 +156,7 @@ struct NoteListView: View {
                 }
                 .listStyle(.insetGrouped)
                 .navigationTitle(titleForCurrentLevel)
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         if viewModel.canGoBack {
@@ -210,31 +211,12 @@ struct NoteListView: View {
                         await viewModel.loadContents(path: viewModel.currentPath)
                     }
                 }
-                
-                // Updating overlay when we have cached data
-                if viewModel.isLoadingList && !viewModel.items.isEmpty {
-                    VStack {
-                        HStack(spacing: 8) {
-                            ProgressView().scaleEffect(0.8)
-                            Text("Updating…")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
-                        .shadow(color: .black.opacity(0.1), radius: 4)
-                        Spacer()
-                    }
-                    .padding(.top, 8)
-                }
             }
         }
     }
     
     private var titleForCurrentLevel: String {
-        if viewModel.currentPath.isEmpty { return "Areas" }
+        if viewModel.currentPath.isEmpty { return "Root" }
         let components = viewModel.currentPath.split(separator: "/")
         return components.last.map(String.init) ?? "Browse"
     }
