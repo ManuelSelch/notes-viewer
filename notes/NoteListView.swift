@@ -26,10 +26,6 @@ struct NoteListView: View {
         return groups
     }
     
-    private var isShowingStaleData: Bool {
-        !viewModel.isLoadingList && viewModel.listError?.contains("cached") == true
-    }
-    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -37,9 +33,8 @@ struct NoteListView: View {
                     if let error = viewModel.listError {
                         Section {
                             Label(error, systemImage: "exclamationmark.triangle")
-                                .foregroundColor(.orange)
                                 .font(.callout)
-                                .padding(.vertical, 4)
+                                .foregroundColor(.orange)
                         }
                         .listRowBackground(Color.orange.opacity(0.08))
                     }
@@ -47,7 +42,6 @@ struct NoteListView: View {
                     if !settings.isConfigured {
                         Section {
                             Text("No repository configured")
-                                .font(.callout)
                                 .foregroundColor(.secondary)
                             Button("Configure Repository") {
                                 showSettings = true
@@ -58,8 +52,7 @@ struct NoteListView: View {
                     if viewModel.isLoadingList && viewModel.items.isEmpty {
                         Section {
                             VStack(spacing: 12) {
-                                ProgressView()
-                                    .scaleEffect(1.2)
+                                ProgressView().scaleEffect(1.2)
                                 Text("Loading…")
                                     .font(.footnote)
                                     .foregroundColor(.secondary)
@@ -97,9 +90,10 @@ struct NoteListView: View {
                                 Text(title)
                                     .font(.footnote.bold())
                                     .textCase(nil)
-                                if isShowingStaleData {
+                                
+                                if viewModel.isOffline {
                                     Spacer()
-                                    Label("Cached", systemImage: "clock.arrow.circlepath")
+                                    Label("Offline", systemImage: "wifi.slash")
                                         .font(.caption2)
                                         .foregroundColor(.orange)
                                 }
@@ -164,12 +158,11 @@ struct NoteListView: View {
                     }
                 }
                 
-                // Overlay loading indicator when we have partial data
+                // Updating overlay when we have cached data
                 if viewModel.isLoadingList && !viewModel.items.isEmpty {
                     VStack {
                         HStack(spacing: 8) {
-                            ProgressView()
-                                .scaleEffect(0.8)
+                            ProgressView().scaleEffect(0.8)
                             Text("Updating…")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -190,8 +183,7 @@ struct NoteListView: View {
     private var titleForCurrentLevel: String {
         if viewModel.currentPath.isEmpty { return "Areas" }
         let components = viewModel.currentPath.split(separator: "/")
-        guard let last = components.last.map(String.init) else { return "Browse" }
-        return last
+        return components.last.map(String.init) ?? "Browse"
     }
 }
 

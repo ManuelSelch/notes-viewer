@@ -14,8 +14,7 @@ struct NoteDetailView: View {
         ScrollView {
             if viewModel.isLoading {
                 VStack(spacing: 12) {
-                    ProgressView()
-                        .scaleEffect(1.2)
+                    ProgressView().scaleEffect(1.2)
                     Text("Loading…")
                         .font(.footnote)
                         .foregroundColor(.secondary)
@@ -41,6 +40,14 @@ struct NoteDetailView: View {
             }
         }
         .navigationTitle(item.jdInfo.title)
+        .toolbar {
+            if viewModel.isOffline {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Image(systemName: "wifi.slash")
+                        .foregroundColor(.orange)
+                }
+            }
+        }
         .task {
             await viewModel.load(owner: owner, repo: repo, token: token, path: item.path)
         }
@@ -51,43 +58,60 @@ struct NoteDetailView: View {
 class DetailViewModel: ObservableObject {
     @Published var content: String = ""
     @Published var isLoading = false
+    @Published var isOffline = false
     @Published var error: String?
     
-    private let service = GitHubService()
+    private let cache = OfflineCache.shared
     
     func load(owner: String, repo: String, token: String, path: String) async {
         isLoading = true
         error = nil
+        isOffline = false
         
-        let authenticatedService = GitHubService(token: token)
+        // Offline cache first
+        if let cached = await cache.file(for: path) {
+            content = cached
+            isOffline = true
+        }
         
+        // Net check
+        guard await canReachGitHub() else {
+            content = await cache.file(for: path) ?? content
+            isLoading = false
+            return
+        }
+        
+        let service = GitHubService(token: token)
         do {
-            content = try await authenticatedService.fetchFileContent(owner: owner, repo: repo, path: path)
+            let freshContent = try await service.fetchFileContent(owner: owner, repo: repo, path: path)
+            content = freshContent
+            isOffline = false
+            await cache.setFile(content: freshContent, for: path)
+        } catch let error as URLError where error.code == .notConnectedToInternet {
+            if content.isEmpty {
+                self.error = "No network — file not cached"
+            }
+            isOffline = true
         } catch {
-            self.error = error.localizedDescription
+            if content.isEmpty {
+                self.error = error.localizedDescription
+            } else {
+                isOffline = true
+                self.error = "Offline — showing cached content"
+            }
         }
         
         isLoading = false
     }
-}
-
-#Preview {
-    NavigationStack {
-        NoteDetailView(
-            owner: "ManuelSelch",
-            repo: "pi-memory-md",
-            token: "",
-            item: GitHubItem(
-                name: "README.md",
-                path: "README.md",
-                sha: "abc",
-                size: 100,
-                url: "",
-                htmlUrl: "",
-                gitUrl: "",
-                downloadUrl: nil,
-                type: "file"
-            )
-        )
+    
+    private func canReachGitHub() async -> Bool {
+        var request = URLRequest(url: URL(string: "https://api.github.com")!)
+        request.timeoutInterval = 3
+        do {
+            _ = try await URLSession.shared.data(for: request)
+            return true
+        } catch {
+            return false
+        }
     }
 }

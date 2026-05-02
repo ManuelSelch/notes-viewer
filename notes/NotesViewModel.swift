@@ -8,6 +8,7 @@ class NotesViewModel: ObservableObject {
     @Published var markdownContent: String = ""
     @Published var isLoadingList = false
     @Published var isLoadingFile = false
+    @Published var isOffline = false
     @Published var listError: String?
     @Published var fileError: String?
     @Published var currentPath: String = ""
@@ -15,7 +16,7 @@ class NotesViewModel: ObservableObject {
     
     let settings: SettingsStore
     private var service: GitHubService
-    private let cache = DirectoryCache.shared
+    private let cache = OfflineCache.shared
     
     init(settings: SettingsStore) {
         self.settings = settings
@@ -32,30 +33,44 @@ class NotesViewModel: ObservableObject {
             return
         }
         
-        isLoadingList = true
         listError = nil
         
-        // Clear stale items while loading so user doesn't see wrong data
-        if path != currentPath {
-            items = []
+        // Check cache first — show instantly if available
+        if let cached = await cache.directory(for: path) {
+            items = cached
+            currentPath = path
+            isOffline = true
+            
+            // If we have no network, don't bother trying to refresh
+            guard await hasNetwork() else { return }
         }
         
-        // Try cache first for instant display
-        if let cached = await cache.get(for: path) {
-            items = cached
+        isLoadingList = true
+        
+        // Clear before fetching to avoid stale data mismatch
+        if !items.isEmpty {
+            items = []
         }
         
         do {
             let freshItems = try await service.fetchRepositoryContents(owner: settings.owner, repo: settings.repo, path: path)
             items = freshItems
             currentPath = path
-            await cache.set(items: freshItems, for: path)
+            isOffline = false
+            await cache.setDirectory(items: freshItems, for: path)
+        } catch let error as URLError where error.code == .notConnectedToInternet {
+            // Network offline — cache already shown above
+            items = await cache.directory(for: path) ?? []
+            isOffline = true
         } catch {
-            // If we have cached items, keep them and show a subtle error
-            if items.isEmpty {
-                listError = error.localizedDescription
+            let cached = await cache.directory(for: path)
+            if cached != nil {
+                items = cached!
+                isOffline = true
+                listError = "Offline — showing cached data"
             } else {
-                listError = "\(error.localizedDescription) — showing cached data"
+                listError = error.localizedDescription
+                items = []
             }
         }
         
@@ -69,10 +84,36 @@ class NotesViewModel: ObservableObject {
         fileError = nil
         markdownContent = ""
         
+        if let cached = await cache.file(for: item.path) {
+            markdownContent = cached
+            isOffline = true
+            
+            guard await hasNetwork() else {
+                isLoadingFile = false
+                return
+            }
+        }
+        
         do {
-            markdownContent = try await service.fetchFileContent(owner: settings.owner, repo: settings.repo, path: item.path)
+            let content = try await service.fetchFileContent(owner: settings.owner, repo: settings.repo, path: item.path)
+            markdownContent = content
+            isOffline = false
+            await cache.setFile(content: content, for: item.path)
+        } catch let error as URLError where error.code == .notConnectedToInternet {
+            if let cached = await cache.file(for: item.path) {
+                markdownContent = cached
+                isOffline = true
+            } else {
+                fileError = "No network — file not cached"
+            }
         } catch {
-            fileError = error.localizedDescription
+            if let cached = await cache.file(for: item.path) {
+                markdownContent = cached
+                isOffline = true
+                fileError = "Offline — showing cached content"
+            } else {
+                fileError = error.localizedDescription
+            }
         }
         
         isLoadingFile = false
@@ -100,6 +141,17 @@ class NotesViewModel: ObservableObject {
     func clearCache() {
         Task {
             await cache.clear()
+        }
+    }
+    
+    private func hasNetwork() async -> Bool {
+        var request = URLRequest(url: URL(string: "https://api.github.com")!)
+        request.timeoutInterval = 3
+        do {
+            _ = try await URLSession.shared.data(for: request)
+            return true
+        } catch {
+            return false
         }
     }
 }
