@@ -5,9 +5,6 @@ struct SettingsView: View {
     var isInitialSetup: Bool = false
     @Environment(\.dismiss) private var dismiss
     
-    @State private var rootFolders: [GitHubItem] = []
-    @State private var isLoadingFolders = false
-    
     var body: some View {
         NavigationStack {
             Form {
@@ -21,34 +18,6 @@ struct SettingsView: View {
                     Text("Required only for private repos. Generate at github.com/settings/tokens")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                }
-                
-                if settings.isConfigured {
-                    Section("Favorites") {
-                        if isLoadingFolders {
-                            ProgressView()
-                                .frame(maxWidth: .infinity, alignment: .center)
-                        } else if rootFolders.isEmpty {
-                            Text("No folders found")
-                                .foregroundColor(.secondary)
-                        } else {
-                            ForEach(rootFolders) { folder in
-                                HStack {
-                                    Image(systemName: "folder.fill")
-                                        .foregroundColor(.blue)
-                                    Text(folder.name)
-                                    Spacer()
-                                    Button {
-                                        settings.toggleFavorite(path: folder.path)
-                                    } label: {
-                                        Image(systemName: settings.isFavorite(path: folder.path) ? "star.fill" : "star")
-                                            .foregroundColor(settings.isFavorite(path: folder.path) ? .yellow : .gray)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
                 }
                 
                 if isInitialSetup {
@@ -70,35 +39,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .task {
-                await loadRootFolders()
-            }
-            .onChange(of: settings.owner) { _, _ in
-                Task { await loadRootFolders() }
-            }
-            .onChange(of: settings.repo) { _, _ in
-                Task { await loadRootFolders() }
-            }
         }
-    }
-    
-    private func loadRootFolders() async {
-        guard settings.isConfigured else { return }
-        isLoadingFolders = true
-        
-        let service = GitHubService(token: settings.token)
-        do {
-            let items = try await service.fetchRepositoryContents(
-                owner: settings.owner,
-                repo: settings.repo,
-                path: ""
-            )
-            rootFolders = items.filter { $0.isDirectory }
-        } catch {
-            rootFolders = []
-        }
-        
-        isLoadingFolders = false
     }
 }
 

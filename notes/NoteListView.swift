@@ -31,7 +31,21 @@ struct NoteListView: View {
     
     private var favoriteItems: [GitHubItem] {
         guard viewModel.currentPath.isEmpty else { return [] }
-        return viewModel.items.filter { settings.favorites.contains($0.path) && $0.isDirectory }
+        return settings.favorites.compactMap { path in
+            let components = path.split(separator: "/").map(String.init)
+            guard let name = components.last else { return nil }
+            return GitHubItem(
+                name: name,
+                path: path,
+                sha: path,
+                size: 0,
+                url: "",
+                htmlUrl: "",
+                gitUrl: "",
+                downloadUrl: nil,
+                type: "dir"
+            )
+        }
     }
     
     var body: some View {
@@ -79,6 +93,14 @@ struct NoteListView: View {
                                     viewModel.navigateToDirectory(item)
                                 } label: {
                                     JDListRow(item: item, info: item.jdInfo, isCached: viewModel.isCached(item))
+                                }
+                                .swipeActions(edge: .leading) {
+                                    Button {
+                                        settings.toggleFavorite(path: item.path)
+                                    } label: {
+                                        Label("Unfavorite", systemImage: "star.fill")
+                                    }
+                                    .tint(.yellow)
                                 }
                             }
                         } header: {
