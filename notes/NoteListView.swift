@@ -5,6 +5,7 @@ struct NoteListView: View {
     @StateObject private var settings = SettingsStore()
     @State private var showSettings = false
     @State private var showSearch = false
+    @State private var showJDSearch = false
     
     init() {
         let settings = SettingsStore()
@@ -230,6 +231,13 @@ struct NoteListView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         HStack(spacing: 16) {
                             Button {
+                                showJDSearch = true
+                            } label: {
+                                Label("JD Search", systemImage: "number")
+                                    .labelStyle(.iconOnly)
+                            }
+                            
+                            Button {
                                 showSearch = true
                             } label: {
                                 Label("Search", systemImage: "magnifyingglass")
@@ -250,6 +258,9 @@ struct NoteListView: View {
                 }
                 .sheet(isPresented: $showSearch) {
                     SearchView(viewModel: viewModel)
+                }
+                .sheet(isPresented: $showJDSearch) {
+                    JDSearchView(viewModel: viewModel)
                 }
                 .onChange(of: settings.owner) { _, _ in
                     viewModel.reloadService(token: settings.token)
