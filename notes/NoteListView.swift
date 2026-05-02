@@ -70,7 +70,7 @@ struct NoteListView: View {
                                     Button {
                                         viewModel.navigateToDirectory(item)
                                     } label: {
-                                        JDListRow(item: item, info: item.jdInfo)
+                                        JDListRow(item: item, info: item.jdInfo, isCached: viewModel.isCached(item))
                                     }
                                 } else if item.isMarkdown {
                                     NavigationLink {
@@ -81,7 +81,7 @@ struct NoteListView: View {
                                             item: item
                                         )
                                     } label: {
-                                        JDListRow(item: item, info: item.jdInfo)
+                                        JDListRow(item: item, info: item.jdInfo, isCached: viewModel.isCached(item))
                                     }
                                 }
                             }

@@ -4,6 +4,7 @@ import SwiftUI
 struct JDListRow: View {
     let item: GitHubItem
     let info: JDInfo
+    let isCached: Bool
     
     var body: some View {
         HStack(spacing: 14) {
@@ -37,6 +38,12 @@ struct JDListRow: View {
             }
             
             Spacer()
+            
+            if isCached {
+                Image(systemName: "arrow.down.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption)
+            }
             
             if item.isDirectory {
                 Image(systemName: "chevron.right")

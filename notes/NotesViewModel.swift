@@ -15,6 +15,7 @@ class NotesViewModel: ObservableObject {
     @Published var navigationStack: [String] = []
     @Published var searchResults: [GitHubItem] = []
     @Published var isBuildingSearchIndex = false
+    @Published var cacheStatusMap: [String: Bool] = [:]
     
     let settings: SettingsStore
     private var service: GitHubService
@@ -41,6 +42,7 @@ class NotesViewModel: ObservableObject {
             items = cached
             currentPath = path
             isOffline = true
+            await refreshCacheStatus()
             guard await hasNetwork() else { return }
         }
         
@@ -48,6 +50,7 @@ class NotesViewModel: ObservableObject {
         
         if path != currentPath {
             items = []
+            cacheStatusMap.removeAll()
         }
         
         do {
@@ -56,17 +59,21 @@ class NotesViewModel: ObservableObject {
             currentPath = path
             isOffline = false
             await cache.setDirectory(items: freshItems, for: path)
+            await refreshCacheStatus()
         } catch let error as URLError where error.code == .notConnectedToInternet {
             items = await cache.directory(for: path) ?? []
             isOffline = true
+            await refreshCacheStatus()
         } catch {
             if let cached = await cache.directory(for: path) {
                 items = cached
                 isOffline = true
                 listError = "Offline — showing cached data"
+                await refreshCacheStatus()
             } else {
                 listError = error.localizedDescription
                 items = []
+                cacheStatusMap.removeAll()
             }
         }
         
@@ -108,6 +115,19 @@ class NotesViewModel: ObservableObject {
         isLoadingFile = false
     }
     
+    func refreshCacheStatus() async {
+        var map: [String: Bool] = [:]
+        for item in items {
+            let status = await cache.cacheStatus(for: item)
+            map[item.path] = status == .cached
+        }
+        cacheStatusMap = map
+    }
+    
+    func isCached(_ item: GitHubItem) -> Bool {
+        cacheStatusMap[item.path] ?? false
+    }
+    
     // MARK: - Recursive Search
     
     func buildSearchIndex(from rootPath: String = "") async {
@@ -124,7 +144,6 @@ class NotesViewModel: ObservableObject {
     }
     
     private func crawl(_ path: String, into results: inout [GitHubItem]) async {
-        // Try cache first, then network
         var items: [GitHubItem] = []
         
         if let cached = await cache.directory(for: path) {
@@ -135,9 +154,7 @@ class NotesViewModel: ObservableObject {
             do {
                 items = try await service.fetchRepositoryContents(owner: settings.owner, repo: settings.repo, path: path)
                 await cache.setDirectory(items: items, for: path)
-            } catch {
-                return // Skip this path if we can't fetch
-            }
+            } catch { return }
         }
         
         for item in items {
@@ -159,8 +176,6 @@ class NotesViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Navigation
-    
     func navigateToDirectory(_ item: GitHubItem) {
         guard item.isDirectory else { return }
         navigationStack.append(currentPath)
@@ -176,6 +191,7 @@ class NotesViewModel: ObservableObject {
     
     func clearCache() {
         Task { await cache.clear() }
+        cacheStatusMap.removeAll()
     }
     
     private func hasNetwork() async -> Bool {

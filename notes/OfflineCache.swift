@@ -72,7 +72,37 @@ actor OfflineCache {
         return files[path]?.cachedAt
     }
     
+    func cacheStatus(for item: GitHubItem) -> CacheStatus {
+        ensureLoaded()
+        if item.isMarkdown {
+            return files[item.path] != nil ? .cached : .notCached
+        }
+        if item.isDirectory {
+            return folderFullyCached(item.path) ? .cached : .notCached
+        }
+        return .notCached
+    }
+    
+    func folderFullyCached(_ path: String) -> Bool {
+        ensureLoaded()
+        guard let items = directories[path]?.items else { return false }
+        for item in items {
+            if item.isMarkdown && files[item.path] == nil {
+                return false
+            }
+            if item.isDirectory && !folderFullyCached(item.path) {
+                return false
+            }
+        }
+        return true
+    }
+    
     // MARK: - Clearing
+    
+    enum CacheStatus {
+        case cached
+        case notCached
+    }
     
     func clear() {
         directories.removeAll()
